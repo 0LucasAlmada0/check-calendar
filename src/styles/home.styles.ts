@@ -2,14 +2,53 @@ import { StyleSheet } from "react-native";
 
 const PRIMARY_BLUE = "#2563eb";
 const SOFT_BLUE = "#dbeafe";
-const BG_BLUE = "#eff6ff";
 const TEXT_DARK = "#1e3a8a";
 const TEXT_MUTED = "#64748b";
 
 export const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: BG_BLUE,
+    backgroundColor: "#ffffff",
+  },
+  backgroundLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backgroundTopFade: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "58%",
+    backgroundColor: "#eaf3ff",
+  },
+  backgroundBottomFade: {
+    position: "absolute",
+    top: "42%",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#ffffff",
+  },
+  backgroundOrbPrimary: {
+    position: "absolute",
+    top: 28,
+    right: -34,
+    width: 168,
+    height: 168,
+    borderRadius: 84,
+    backgroundColor: "rgba(37, 99, 235, 0.08)",
+  },
+  backgroundOrbSecondary: {
+    position: "absolute",
+    top: 180,
+    left: -46,
+    width: 118,
+    height: 118,
+    borderRadius: 59,
+    backgroundColor: "rgba(147, 197, 253, 0.08)",
+  },
+  content: {
+    flex: 1,
     paddingHorizontal: 16,
     paddingTop: 12,
   },
@@ -41,6 +80,20 @@ export const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 18,
     marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  infoGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  infoMetric: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: "#bfdbfe",
   },
@@ -79,29 +132,52 @@ export const styles = StyleSheet.create({
     height: 52,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "transparent",
   },
   dayPressablePressed: {
     opacity: 0.78,
+    transform: [{ scale: 0.95 }],
   },
   dayContainer: {
     width: 46,
     height: 46,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "transparent",
   },
   dayCircle: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "transparent",
   },
   dayCircleChecked: {
     backgroundColor: PRIMARY_BLUE,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: "hidden",
   },
   dayCircleToday: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 2,
     borderColor: PRIMARY_BLUE,
+    overflow: "hidden",
+    backgroundColor: "#f8fbff",
+  },
+  dayCircleTodayChecked: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#93c5fd",
+    overflow: "hidden",
+    backgroundColor: PRIMARY_BLUE,
   },
   dayNumber: {
     fontSize: 15,
@@ -113,7 +189,11 @@ export const styles = StyleSheet.create({
     fontWeight: "700",
   },
   dayNumberToday: {
-    color: PRIMARY_BLUE,
+    color: "#2563eb",
+    fontWeight: "800",
+  },
+  dayNumberTodayChecked: {
+    color: "#ffffff",
     fontWeight: "800",
   },
   dayNumberDisabled: {

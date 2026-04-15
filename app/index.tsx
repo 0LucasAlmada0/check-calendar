@@ -9,7 +9,11 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { Calendar, type DateData } from "react-native-calendars";
+import {
+  Calendar,
+  LocaleConfig,
+  type DateData,
+} from "react-native-calendars";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { styles } from "../src/styles/home.styles";
@@ -32,6 +36,50 @@ type DayCellProps = {
 const STORAGE_KEY = "@check_calendar_dates";
 const EASTER_EGG_TRIGGER_COUNT = 5;
 
+LocaleConfig.locales["pt-br"] = {
+  monthNames: [
+    "Janeiro",
+    "Fevereiro",
+    "Março",
+    "Abril",
+    "Maio",
+    "Junho",
+    "Julho",
+    "Agosto",
+    "Setembro",
+    "Outubro",
+    "Novembro",
+    "Dezembro",
+  ],
+  monthNamesShort: [
+    "Jan",
+    "Fev",
+    "Mar",
+    "Abr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Set",
+    "Out",
+    "Nov",
+    "Dez",
+  ],
+  dayNames: [
+    "Domingo",
+    "Segunda-feira",
+    "Terça-feira",
+    "Quarta-feira",
+    "Quinta-feira",
+    "Sexta-feira",
+    "Sábado",
+  ],
+  dayNamesShort: ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"],
+  today: "Hoje",
+};
+
+LocaleConfig.defaultLocale = "pt-br";
+
 function getTodayDateString(): string {
   const today = new Date();
   const year = today.getFullYear();
@@ -49,7 +97,7 @@ function showSpecialMessage(dateString: string): void {
   if (dateString.endsWith("-02-01")) {
     Alert.alert(
       "JoyCheck",
-      "\u{1F499} Foi aqui que tudo comecou.\nTe amo muito!"
+      "\u{1F499} Foi aqui que tudo começou.\nTe amo muito!"
     );
     return;
   }
@@ -57,7 +105,7 @@ function showSpecialMessage(dateString: string): void {
   if (dateString.endsWith("-08-01")) {
     Alert.alert(
       "JoyCheck",
-      "\u{2728} O dia que te conheci mudou tudo.\nSou muito feliz com voce."
+      "O dia que te conheci mudou tudo.\nSou muito feliz com você \u{1F499}."
     );
   }
 }
@@ -77,13 +125,14 @@ function DayCell({
 
     Animated.sequence([
       Animated.timing(scale, {
-        toValue: 0.95,
-        duration: 75,
+        toValue: 0.92,
+        duration: 65,
         useNativeDriver: true,
       }),
-      Animated.timing(scale, {
+      Animated.spring(scale, {
         toValue: 1,
-        duration: 75,
+        friction: 6,
+        tension: 220,
         useNativeDriver: true,
       }),
     ]).start();
@@ -118,14 +167,16 @@ function DayCell({
             styles.dayCircle,
             isChecked && styles.dayCircleChecked,
             isToday && !isChecked && styles.dayCircleToday,
+            isToday && isChecked && styles.dayCircleTodayChecked,
           ]}
         >
           <Text
             style={[
               styles.dayNumber,
               isDisabled && styles.dayNumberDisabled,
+              isToday && styles.dayNumberToday,
               isChecked && styles.dayNumberChecked,
-              isToday && !isChecked && styles.dayNumberToday,
+              isToday && isChecked && styles.dayNumberTodayChecked,
             ]}
           >
             {date.day}
@@ -143,19 +194,47 @@ function DayCell({
 }
 
 export default function Index() {
+  const [todayString] = useState(getTodayDateString);
+  const [visibleMonthString, setVisibleMonthString] = useState(todayString);
   const [checkedDates, setCheckedDates] = useState<MarkedDates>({});
   const [isLoading, setIsLoading] = useState(true);
   const [, setEasterEgg] = useState<EasterEggState>({
     count: 0,
     dateString: null,
   });
-  const [todayString] = useState(getTodayDateString);
+  const infoCardAnimation = useRef(new Animated.Value(1)).current;
+  const hasAnimatedInfoCard = useRef(false);
 
+  const visibleMonthPrefix = visibleMonthString.slice(0, 7);
   const totalChecked = Object.keys(checkedDates).length;
+  const checkedInVisibleMonth = Object.keys(checkedDates).filter((dateString) =>
+    dateString.startsWith(visibleMonthPrefix)
+  ).length;
+  const infoCardOpacity = infoCardAnimation.interpolate({
+    inputRange: [0.992, 1],
+    outputRange: [0.95, 1],
+  });
 
   useEffect(() => {
     void loadCheckedDates();
   }, []);
+
+  useEffect(() => {
+    if (!hasAnimatedInfoCard.current) {
+      hasAnimatedInfoCard.current = true;
+      return;
+    }
+
+    infoCardAnimation.stopAnimation();
+    infoCardAnimation.setValue(0.992);
+
+    Animated.spring(infoCardAnimation, {
+      toValue: 1,
+      friction: 8,
+      tension: 160,
+      useNativeDriver: true,
+    }).start();
+  }, [checkedInVisibleMonth, infoCardAnimation, totalChecked]);
 
   async function loadCheckedDates(): Promise<void> {
     try {
@@ -218,8 +297,15 @@ export default function Index() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.screen}>
+        <View pointerEvents="none" style={styles.backgroundLayer}>
+          <View style={styles.backgroundTopFade} />
+          <View style={styles.backgroundBottomFade} />
+          <View style={styles.backgroundOrbPrimary} />
+          <View style={styles.backgroundOrbSecondary} />
+        </View>
+
         <View style={styles.loadingBox}>
-          <Text style={styles.loadingText}>Carregando calendario...</Text>
+          <Text style={styles.loadingText}>Carregando calendário...</Text>
         </View>
       </SafeAreaView>
     );
@@ -227,56 +313,86 @@ export default function Index() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
-        <Text style={styles.emoji}>{"\u{1F499}"}</Text>
-        <Text style={styles.title}>Meu calendario de checks</Text>
-        <Text style={styles.subtitle}>
-          Toque em um dia para marcar o que foi concluido.
-        </Text>
+      <View pointerEvents="none" style={styles.backgroundLayer}>
+        <View style={styles.backgroundTopFade} />
+        <View style={styles.backgroundBottomFade} />
+        <View style={styles.backgroundOrbPrimary} />
+        <View style={styles.backgroundOrbSecondary} />
       </View>
 
-      <View style={styles.infoCard}>
-        <Text style={styles.infoLabel}>Dias marcados</Text>
-        <Text style={styles.infoValue}>{totalChecked}</Text>
-      </View>
+      <View style={styles.content}>
+        <View style={styles.header}>
+          <Text style={styles.emoji}>{"\u{1F499}"}</Text>
+          <Text style={styles.title}>Meu calendário de checks</Text>
+          <Text style={styles.subtitle}>
+            Toque em um dia para marcar o que foi concluído.
+          </Text>
+        </View>
 
-      <View style={styles.calendarCard}>
-        <Calendar
-          current={todayString}
-          enableSwipeMonths
-          firstDay={0}
-          hideExtraDays={false}
-          onDayPress={handleDayPress}
-          theme={{
-            arrowColor: "#2563eb",
-            calendarBackground: "#ffffff",
-            monthTextColor: "#1e3a8a",
-            textDayHeaderFontSize: 13,
-            textDayHeaderFontWeight: "600",
-            textMonthFontSize: 22,
-            textMonthFontWeight: "700",
-            textSectionTitleColor: "#64748b",
-          }}
-          dayComponent={({ date, state }) => {
-            if (!date) {
-              return null;
-            }
+        <Animated.View
+          style={[
+            styles.infoCard,
+            {
+              opacity: infoCardOpacity,
+              transform: [{ scale: infoCardAnimation }],
+            },
+          ]}
+        >
+          <View style={styles.infoGrid}>
+            <View style={styles.infoMetric}>
+              <Text style={styles.infoLabel}>Total de dias</Text>
+              <Text style={styles.infoValue}>{totalChecked}</Text>
+            </View>
 
-            const dateString = date.dateString;
+            <View style={styles.infoMetric}>
+              <Text style={styles.infoLabel}>No mês exibido</Text>
+              <Text style={styles.infoValue}>{checkedInVisibleMonth}</Text>
+            </View>
+          </View>
+        </Animated.View>
 
-            return (
-              <DayCell
-                date={date}
-                isChecked={Boolean(checkedDates[dateString])}
-                isDisabled={state === "disabled"}
-                isToday={dateString === todayString}
-                onPress={(pressedDay) => {
-                  void handleDayPress(pressedDay);
-                }}
-              />
-            );
-          }}
-        />
+        <View style={styles.calendarCard}>
+          <Calendar
+            current={todayString}
+            enableSwipeMonths
+            firstDay={0}
+            hideExtraDays={false}
+            onDayPress={handleDayPress}
+            onMonthChange={(month) => {
+              setVisibleMonthString(month.dateString);
+            }}
+            theme={{
+              arrowColor: "#2563eb",
+              calendarBackground: "#ffffff",
+              monthTextColor: "#1e3a8a",
+              textDayHeaderFontSize: 13,
+              textDayHeaderFontWeight: "600",
+              textMonthFontSize: 22,
+              textMonthFontWeight: "700",
+              textSectionTitleColor: "#64748b",
+            }}
+            dayComponent={({ date, state }) => {
+              if (!date || typeof date.day !== "number") {
+                return null;
+              }
+
+              const dateString = date.dateString;
+
+              return (
+                <DayCell
+                  key={dateString}
+                  date={date}
+                  isChecked={Boolean(checkedDates[dateString])}
+                  isDisabled={state === "disabled"}
+                  isToday={dateString === todayString}
+                  onPress={(pressedDay) => {
+                    void handleDayPress(pressedDay);
+                  }}
+                />
+              );
+            }}
+          />
+        </View>
       </View>
     </SafeAreaView>
   );

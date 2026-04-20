@@ -3,8 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
+  PanResponder,
   Pressable,
   Text,
+  TextInput,
   View,
   type StyleProp,
   type ViewStyle,
@@ -18,7 +20,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { styles } from "../src/styles/home.styles";
 
-type MarkedDates = Record<string, { checked: true }>;
+type CalendarDateData = {
+  checked: boolean;
+  note: string;
+};
+
+type CalendarDates = Record<string, CalendarDateData>;
 
 type EasterEggState = {
   count: number;
@@ -110,6 +117,45 @@ function showSpecialMessage(dateString: string): void {
   }
 }
 
+function normalizeCalendarDates(storedDates: unknown): CalendarDates {
+  if (!storedDates || typeof storedDates !== "object") {
+    return {};
+  }
+
+  return Object.entries(storedDates as Record<string, unknown>).reduce(
+    (normalizedDates, [dateString, rawValue]) => {
+      if (!rawValue || typeof rawValue !== "object") {
+        return normalizedDates;
+      }
+
+      const value = rawValue as Partial<CalendarDateData>;
+      const checked = Boolean(value.checked);
+      const note = typeof value.note === "string" ? value.note : "";
+
+      if (checked || note.trim().length > 0) {
+        normalizedDates[dateString] = {
+          checked,
+          note,
+        };
+      }
+
+      return normalizedDates;
+    },
+    {} as CalendarDates
+  );
+}
+
+function formatSelectedDate(dateString: string): string {
+  const [year, month, day] = dateString.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
 function DayCell({
   date,
   isChecked,
@@ -196,7 +242,12 @@ function DayCell({
 export default function Index() {
   const [todayString] = useState(getTodayDateString);
   const [visibleMonthString, setVisibleMonthString] = useState(todayString);
-  const [checkedDates, setCheckedDates] = useState<MarkedDates>({});
+  const [checkedDates, setCheckedDates] = useState<CalendarDates>({});
+  const [selectedDateString, setSelectedDateString] = useState<string | null>(
+    null
+  );
+  const [isNotesExpanded, setIsNotesExpanded] = useState(false);
+  const [noteText, setNoteText] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [, setEasterEgg] = useState<EasterEggState>({
     count: 0,
@@ -204,12 +255,34 @@ export default function Index() {
   });
   const infoCardAnimation = useRef(new Animated.Value(1)).current;
   const hasAnimatedInfoCard = useRef(false);
+  const notesPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dy) > 12,
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy < -20) {
+          setIsNotesExpanded(true);
+          return;
+        }
+
+        if (gestureState.dy > 20) {
+          setIsNotesExpanded(false);
+        }
+      },
+    })
+  ).current;
 
   const visibleMonthPrefix = visibleMonthString.slice(0, 7);
-  const totalChecked = Object.keys(checkedDates).length;
-  const checkedInVisibleMonth = Object.keys(checkedDates).filter((dateString) =>
+  const checkedDateEntries = Object.entries(checkedDates).filter(
+    ([, value]) => value.checked
+  );
+  const totalChecked = checkedDateEntries.length;
+  const checkedInVisibleMonth = checkedDateEntries.filter(([dateString]) =>
     dateString.startsWith(visibleMonthPrefix)
   ).length;
+  const selectedDateLabel = selectedDateString
+    ? formatSelectedDate(selectedDateString)
+    : "";
   const infoCardOpacity = infoCardAnimation.interpolate({
     inputRange: [0.992, 1],
     outputRange: [0.95, 1],
@@ -241,7 +314,7 @@ export default function Index() {
       const storedDates = await AsyncStorage.getItem(STORAGE_KEY);
 
       if (storedDates) {
-        setCheckedDates(JSON.parse(storedDates) as MarkedDates);
+        setCheckedDates(normalizeCalendarDates(JSON.parse(storedDates)));
       }
     } catch (error) {
       console.log("Erro ao carregar datas:", error);
@@ -272,26 +345,69 @@ export default function Index() {
     });
   }
 
-  async function handleDayPress(day: DateData): Promise<void> {
-    const selectedDate = day.dateString;
-
-    handleSpecialDatePress(selectedDate);
-
-    const updatedDates: MarkedDates = { ...checkedDates };
-
-    if (updatedDates[selectedDate]) {
-      delete updatedDates[selectedDate];
-    } else {
-      updatedDates[selectedDate] = { checked: true };
-    }
-
-    setCheckedDates(updatedDates);
-
+  async function saveCalendarDates(updatedDates: CalendarDates): Promise<void> {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDates));
     } catch (error) {
       console.log("Erro ao salvar datas:", error);
     }
+  }
+
+  async function handleDayPress(day: DateData): Promise<void> {
+    const selectedDate = day.dateString;
+    const currentDateData = checkedDates[selectedDate];
+
+    handleSpecialDatePress(selectedDate);
+    setSelectedDateString(selectedDate);
+    setIsNotesExpanded(false);
+    setNoteText(currentDateData?.note ?? "");
+
+    const updatedDates: CalendarDates = { ...checkedDates };
+
+    if (currentDateData?.checked) {
+      const updatedDateData = {
+        checked: false,
+        note: currentDateData.note,
+      };
+
+      if (updatedDateData.note.trim().length > 0) {
+        updatedDates[selectedDate] = updatedDateData;
+      } else {
+        delete updatedDates[selectedDate];
+      }
+    } else {
+      updatedDates[selectedDate] = {
+        checked: true,
+        note: currentDateData?.note ?? "",
+      };
+    }
+
+    setCheckedDates(updatedDates);
+    await saveCalendarDates(updatedDates);
+  }
+
+  async function handleNoteChange(text: string): Promise<void> {
+    if (!selectedDateString) {
+      return;
+    }
+
+    setNoteText(text);
+
+    const currentDateData = checkedDates[selectedDateString];
+    const updatedDates: CalendarDates = { ...checkedDates };
+    const updatedDateData = {
+      checked: currentDateData?.checked ?? false,
+      note: text,
+    };
+
+    if (updatedDateData.checked || updatedDateData.note.trim().length > 0) {
+      updatedDates[selectedDateString] = updatedDateData;
+    } else {
+      delete updatedDates[selectedDateString];
+    }
+
+    setCheckedDates(updatedDates);
+    await saveCalendarDates(updatedDates);
   }
 
   if (isLoading) {
@@ -382,7 +498,7 @@ export default function Index() {
                 <DayCell
                   key={dateString}
                   date={date}
-                  isChecked={Boolean(checkedDates[dateString])}
+                  isChecked={Boolean(checkedDates[dateString]?.checked)}
                   isDisabled={state === "disabled"}
                   isToday={dateString === todayString}
                   onPress={(pressedDay) => {
@@ -393,6 +509,44 @@ export default function Index() {
             }}
           />
         </View>
+
+        {selectedDateString && (
+          <View
+            style={[
+              styles.notesSheet,
+              isNotesExpanded && styles.notesSheetExpanded,
+            ]}
+            {...notesPanResponder.panHandlers}
+          >
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setIsNotesExpanded((currentValue) => !currentValue);
+              }}
+              style={styles.notesHeader}
+            >
+              <View style={styles.notesHandle} />
+              <View>
+                <Text style={styles.notesTitle}>Anotações</Text>
+                <Text style={styles.notesDate}>{selectedDateLabel}</Text>
+              </View>
+            </Pressable>
+
+            {isNotesExpanded && (
+              <TextInput
+                multiline
+                onChangeText={(text) => {
+                  void handleNoteChange(text);
+                }}
+                placeholder="Escreva uma anotação para este dia..."
+                placeholderTextColor="#94a3b8"
+                style={styles.notesInput}
+                textAlignVertical="top"
+                value={noteText}
+              />
+            )}
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );

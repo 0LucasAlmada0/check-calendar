@@ -14,7 +14,7 @@
     "android": {
       "package": "com.lucas.joycheck",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/ForegroundJoyCheckAppIcon.png",
+        "foregroundImage": "./assets/images/JoyCheckAppIcon.png",
         "backgroundColor": "#2563eb"
       },
       "edgeToEdgeEnabled": true,
@@ -39,6 +39,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "344d874a-938d-47ab-a203-df6669c673f4"
+      }
     }
   }
 }

@@ -365,13 +365,13 @@ function DayCell({
               <Text style={styles.checkIcon}>{"\u2713"}</Text>
             </View>
           )}
-
-          {emoji && (
-            <View style={styles.dayEmojiBadge}>
-              <Text style={styles.dayEmojiText}>{emoji}</Text>
-            </View>
-          )}
         </View>
+
+        {emoji && (
+          <View style={styles.dayEmojiBadge}>
+            <Text style={styles.dayEmojiText}>{emoji}</Text>
+          </View>
+        )}
       </Animated.View>
     </Pressable>
   );
@@ -381,6 +381,7 @@ export default function Index() {
   const insets = useSafeAreaInsets();
   const [todayString] = useState(getTodayDateString);
   const [visibleMonthString, setVisibleMonthString] = useState(todayString);
+  const [calendarResetKey, setCalendarResetKey] = useState(0);
   const [categories, setCategories] = useState<HabitCategory[]>(
     createDefaultCategories
   );
@@ -407,6 +408,7 @@ export default function Index() {
   const hasAnimatedInfoCard = useRef(false);
 
   const visibleMonthPrefix = visibleMonthString.slice(0, 7);
+  const isViewingCurrentMonth = visibleMonthPrefix === todayString.slice(0, 7);
   const selectedCategory =
     categories.find((category) => category.id === selectedCategoryId) ??
     categories[0];
@@ -748,6 +750,11 @@ export default function Index() {
     setNoteText("");
   }
 
+  function handleTodayPress(): void {
+    setVisibleMonthString(todayString);
+    setCalendarResetKey((currentKey) => currentKey + 1);
+  }
+
   async function updateSelectedDateEntry(
     entryChanges: Partial<CalendarDateData>
   ): Promise<void> {
@@ -978,8 +985,24 @@ export default function Index() {
           </View>
         </Animated.View>
 
+        {!isViewingCurrentMonth && (
+          <View style={styles.calendarToolbar}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={handleTodayPress}
+              style={({ pressed }): StyleProp<ViewStyle> => [
+                styles.todayButton,
+                pressed && styles.categoryChipPressed,
+              ]}
+            >
+              <Text style={styles.todayButtonText}>Hoje</Text>
+            </Pressable>
+          </View>
+        )}
+
         <View style={styles.calendarCard}>
           <Calendar
+            key={`${todayString}-${calendarResetKey}`}
             current={todayString}
             enableSwipeMonths
             firstDay={0}

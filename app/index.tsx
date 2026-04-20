@@ -5,6 +5,7 @@ import {
   Animated,
   PanResponder,
   Pressable,
+  ScrollView,
   Text,
   TextInput,
   View,
@@ -21,11 +22,24 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "../src/styles/home.styles";
 
 type CalendarDateData = {
-  checked: boolean;
-  note: string;
+  checked?: boolean;
+  note?: string;
+  emoji?: string;
 };
 
 type CalendarDates = Record<string, CalendarDateData>;
+
+type HabitCategory = {
+  id: string;
+  name: string;
+  emoji?: string;
+  entries: CalendarDates;
+};
+
+type AppData = {
+  categories: HabitCategory[];
+  selectedCategoryId?: string;
+};
 
 type EasterEggState = {
   count: number;
@@ -40,8 +54,17 @@ type DayCellProps = {
   onPress: (day: DateData) => void;
 };
 
+type CategoryFormMode = "create" | "edit" | null;
+
 const STORAGE_KEY = "@check_calendar_dates";
 const EASTER_EGG_TRIGGER_COUNT = 5;
+const DEFAULT_CATEGORIES: HabitCategory[] = [
+  {
+    id: "geral",
+    name: "Geral",
+    entries: {},
+  },
+];
 
 LocaleConfig.locales["pt-br"] = {
   monthNames: [
@@ -131,11 +154,13 @@ function normalizeCalendarDates(storedDates: unknown): CalendarDates {
       const value = rawValue as Partial<CalendarDateData>;
       const checked = Boolean(value.checked);
       const note = typeof value.note === "string" ? value.note : "";
+      const emoji = typeof value.emoji === "string" ? value.emoji : undefined;
 
-      if (checked || note.trim().length > 0) {
+      if (checked || note.trim().length > 0 || emoji) {
         normalizedDates[dateString] = {
-          checked,
-          note,
+          ...(checked ? { checked } : {}),
+          ...(note.trim().length > 0 ? { note } : {}),
+          ...(emoji ? { emoji } : {}),
         };
       }
 
@@ -143,6 +168,89 @@ function normalizeCalendarDates(storedDates: unknown): CalendarDates {
     },
     {} as CalendarDates
   );
+}
+
+function createDefaultCategories(firstCategoryEntries: CalendarDates = {}) {
+  return DEFAULT_CATEGORIES.map((category, index) => ({
+    ...category,
+    entries: index === 0 ? firstCategoryEntries : {},
+  }));
+}
+
+function createCategoryId(name: string, existingCategories: HabitCategory[]) {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const baseId = slug.length > 0 ? slug : "categoria";
+  let nextId = baseId;
+  let suffix = 2;
+
+  while (existingCategories.some((category) => category.id === nextId)) {
+    nextId = `${baseId}-${suffix}`;
+    suffix += 1;
+  }
+
+  return nextId;
+}
+
+function normalizeCategory(rawCategory: unknown): HabitCategory | null {
+  if (!rawCategory || typeof rawCategory !== "object") {
+    return null;
+  }
+
+  const category = rawCategory as Partial<HabitCategory>;
+
+  if (typeof category.id !== "string" || typeof category.name !== "string") {
+    return null;
+  }
+
+  return {
+    id: category.id,
+    name: category.name,
+    ...(typeof category.emoji === "string" ? { emoji: category.emoji } : {}),
+    entries: normalizeCalendarDates(category.entries),
+  };
+}
+
+function normalizeAppData(storedData: unknown): AppData {
+  if (!storedData || typeof storedData !== "object") {
+    return {
+      categories: createDefaultCategories(),
+      selectedCategoryId: DEFAULT_CATEGORIES[0].id,
+    };
+  }
+
+  const data = storedData as Partial<AppData>;
+
+  if (Array.isArray(data.categories)) {
+    const categories = data.categories
+      .map(normalizeCategory)
+      .filter((category): category is HabitCategory => Boolean(category));
+
+    if (categories.length > 0) {
+      const selectedCategoryId = categories.some(
+        (category) => category.id === data.selectedCategoryId
+      )
+        ? data.selectedCategoryId
+        : categories[0].id;
+
+      return {
+        categories,
+        selectedCategoryId,
+      };
+    }
+  }
+
+  const migratedEntries = normalizeCalendarDates(storedData);
+
+  return {
+    categories: createDefaultCategories(migratedEntries),
+    selectedCategoryId: DEFAULT_CATEGORIES[0].id,
+  };
 }
 
 function formatSelectedDate(dateString: string): string {
@@ -242,7 +350,18 @@ function DayCell({
 export default function Index() {
   const [todayString] = useState(getTodayDateString);
   const [visibleMonthString, setVisibleMonthString] = useState(todayString);
-  const [checkedDates, setCheckedDates] = useState<CalendarDates>({});
+  const [categories, setCategories] = useState<HabitCategory[]>(
+    createDefaultCategories
+  );
+  const [selectedCategoryId, setSelectedCategoryId] = useState(
+    DEFAULT_CATEGORIES[0].id
+  );
+  const [categoryFormMode, setCategoryFormMode] =
+    useState<CategoryFormMode>(null);
+  const [categoryNameDraft, setCategoryNameDraft] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(
+    null
+  );
   const [selectedDateString, setSelectedDateString] = useState<string | null>(
     null
   );
@@ -273,7 +392,11 @@ export default function Index() {
   ).current;
 
   const visibleMonthPrefix = visibleMonthString.slice(0, 7);
-  const checkedDateEntries = Object.entries(checkedDates).filter(
+  const selectedCategory =
+    categories.find((category) => category.id === selectedCategoryId) ??
+    categories[0];
+  const selectedCategoryEntries = selectedCategory?.entries ?? {};
+  const checkedDateEntries = Object.entries(selectedCategoryEntries).filter(
     ([, value]) => value.checked
   );
   const totalChecked = checkedDateEntries.length;
@@ -311,10 +434,15 @@ export default function Index() {
 
   async function loadCheckedDates(): Promise<void> {
     try {
-      const storedDates = await AsyncStorage.getItem(STORAGE_KEY);
+      const storedData = await AsyncStorage.getItem(STORAGE_KEY);
 
-      if (storedDates) {
-        setCheckedDates(normalizeCalendarDates(JSON.parse(storedDates)));
+      if (storedData) {
+        const normalizedData = normalizeAppData(JSON.parse(storedData));
+
+        setCategories(normalizedData.categories);
+        setSelectedCategoryId(
+          normalizedData.selectedCategoryId ?? normalizedData.categories[0].id
+        );
       }
     } catch (error) {
       console.log("Erro ao carregar datas:", error);
@@ -345,45 +473,230 @@ export default function Index() {
     });
   }
 
-  async function saveCalendarDates(updatedDates: CalendarDates): Promise<void> {
+  async function saveAppData(updatedData: AppData): Promise<void> {
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedDates));
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
     } catch (error) {
       console.log("Erro ao salvar datas:", error);
     }
   }
 
+  async function handleCategoryPress(categoryId: string): Promise<void> {
+    const nextCategory = categories.find(
+      (category) => category.id === categoryId
+    );
+
+    if (!nextCategory) {
+      return;
+    }
+
+    setSelectedCategoryId(categoryId);
+    setIsNotesExpanded(false);
+    setNoteText(
+      selectedDateString
+        ? nextCategory.entries[selectedDateString]?.note ?? ""
+        : ""
+    );
+
+    await saveAppData({
+      categories,
+      selectedCategoryId: categoryId,
+    });
+  }
+
+  function closeCategoryForm(): void {
+    setCategoryFormMode(null);
+    setCategoryNameDraft("");
+    setEditingCategoryId(null);
+  }
+
+  function handleNewCategoryPress(): void {
+    setCategoryFormMode("create");
+    setCategoryNameDraft("");
+    setEditingCategoryId(null);
+  }
+
+  function handleEditCategoryPress(category: HabitCategory): void {
+    setCategoryFormMode("edit");
+    setCategoryNameDraft(category.name);
+    setEditingCategoryId(category.id);
+  }
+
+  function handleCategoryLongPress(category: HabitCategory): void {
+    Alert.alert(category.name, "O que deseja fazer com esta categoria?", [
+      {
+        text: "Renomear",
+        onPress: () => {
+          handleEditCategoryPress(category);
+        },
+      },
+      {
+        text: "Excluir",
+        style: "destructive",
+        onPress: () => {
+          handleDeleteCategoryPress(category);
+        },
+      },
+      {
+        text: "Cancelar",
+        style: "cancel",
+      },
+    ]);
+  }
+
+  async function handleSaveCategoryPress(): Promise<void> {
+    const trimmedName = categoryNameDraft.trim();
+
+    if (!trimmedName) {
+      Alert.alert("JoyCheck", "Digite um nome para a categoria.");
+      return;
+    }
+
+    if (categoryFormMode === "create") {
+      const newCategory: HabitCategory = {
+        id: createCategoryId(trimmedName, categories),
+        name: trimmedName,
+        entries: {},
+      };
+      const updatedCategories = [...categories, newCategory];
+
+      setCategories(updatedCategories);
+      setSelectedCategoryId(newCategory.id);
+      setIsNotesExpanded(false);
+      setNoteText("");
+      closeCategoryForm();
+
+      await saveAppData({
+        categories: updatedCategories,
+        selectedCategoryId: newCategory.id,
+      });
+
+      return;
+    }
+
+    if (categoryFormMode === "edit" && editingCategoryId) {
+      const updatedCategories = categories.map((category) =>
+        category.id === editingCategoryId
+          ? {
+              ...category,
+              name: trimmedName,
+            }
+          : category
+      );
+
+      setCategories(updatedCategories);
+      closeCategoryForm();
+
+      await saveAppData({
+        categories: updatedCategories,
+        selectedCategoryId,
+      });
+    }
+  }
+
+  function handleDeleteCategoryPress(category: HabitCategory): void {
+    if (categories.length <= 1) {
+      Alert.alert("JoyCheck", "Mantenha pelo menos uma categoria.");
+      return;
+    }
+
+    Alert.alert(
+      "Excluir categoria",
+      `Excluir "${category.name}" também remove seus checks e anotações.`,
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: () => {
+            void deleteCategory(category.id);
+          },
+        },
+      ]
+    );
+  }
+
+  async function deleteCategory(categoryId: string): Promise<void> {
+    const updatedCategories = categories.filter(
+      (category) => category.id !== categoryId
+    );
+    const nextSelectedCategoryId =
+      selectedCategoryId === categoryId
+        ? updatedCategories[0].id
+        : selectedCategoryId;
+    const nextSelectedCategory = updatedCategories.find(
+      (category) => category.id === nextSelectedCategoryId
+    );
+
+    setCategories(updatedCategories);
+    setSelectedCategoryId(nextSelectedCategoryId);
+    setIsNotesExpanded(false);
+    setNoteText(
+      selectedDateString && nextSelectedCategory
+        ? nextSelectedCategory.entries[selectedDateString]?.note ?? ""
+        : ""
+    );
+
+    if (editingCategoryId === categoryId) {
+      closeCategoryForm();
+    }
+
+    await saveAppData({
+      categories: updatedCategories,
+      selectedCategoryId: nextSelectedCategoryId,
+    });
+  }
+
   async function handleDayPress(day: DateData): Promise<void> {
     const selectedDate = day.dateString;
-    const currentDateData = checkedDates[selectedDate];
+    const currentDateData = selectedCategoryEntries[selectedDate];
 
     handleSpecialDatePress(selectedDate);
     setSelectedDateString(selectedDate);
     setIsNotesExpanded(false);
     setNoteText(currentDateData?.note ?? "");
 
-    const updatedDates: CalendarDates = { ...checkedDates };
+    const updatedEntries: CalendarDates = { ...selectedCategoryEntries };
 
     if (currentDateData?.checked) {
       const updatedDateData = {
-        checked: false,
         note: currentDateData.note,
+        emoji: currentDateData.emoji,
       };
 
-      if (updatedDateData.note.trim().length > 0) {
-        updatedDates[selectedDate] = updatedDateData;
+      if (
+        (updatedDateData.note ?? "").trim().length > 0 ||
+        updatedDateData.emoji
+      ) {
+        updatedEntries[selectedDate] = updatedDateData;
       } else {
-        delete updatedDates[selectedDate];
+        delete updatedEntries[selectedDate];
       }
     } else {
-      updatedDates[selectedDate] = {
+      updatedEntries[selectedDate] = {
         checked: true,
         note: currentDateData?.note ?? "",
+        emoji: currentDateData?.emoji,
       };
     }
 
-    setCheckedDates(updatedDates);
-    await saveCalendarDates(updatedDates);
+    const updatedCategories = categories.map((category) =>
+      category.id === selectedCategoryId
+        ? {
+            ...category,
+            entries: updatedEntries,
+          }
+        : category
+    );
+
+    setCategories(updatedCategories);
+    await saveAppData({
+      categories: updatedCategories,
+      selectedCategoryId,
+    });
   }
 
   async function handleNoteChange(text: string): Promise<void> {
@@ -393,21 +706,34 @@ export default function Index() {
 
     setNoteText(text);
 
-    const currentDateData = checkedDates[selectedDateString];
-    const updatedDates: CalendarDates = { ...checkedDates };
+    const currentDateData = selectedCategoryEntries[selectedDateString];
+    const updatedEntries: CalendarDates = { ...selectedCategoryEntries };
     const updatedDateData = {
       checked: currentDateData?.checked ?? false,
       note: text,
+      emoji: currentDateData?.emoji,
     };
 
-    if (updatedDateData.checked || updatedDateData.note.trim().length > 0) {
-      updatedDates[selectedDateString] = updatedDateData;
+    if (updatedDateData.checked || text.trim().length > 0 || updatedDateData.emoji) {
+      updatedEntries[selectedDateString] = updatedDateData;
     } else {
-      delete updatedDates[selectedDateString];
+      delete updatedEntries[selectedDateString];
     }
 
-    setCheckedDates(updatedDates);
-    await saveCalendarDates(updatedDates);
+    const updatedCategories = categories.map((category) =>
+      category.id === selectedCategoryId
+        ? {
+            ...category,
+            entries: updatedEntries,
+          }
+        : category
+    );
+
+    setCategories(updatedCategories);
+    await saveAppData({
+      categories: updatedCategories,
+      selectedCategoryId,
+    });
   }
 
   if (isLoading) {
@@ -444,6 +770,102 @@ export default function Index() {
             Toque em um dia para marcar o que foi concluído.
           </Text>
         </View>
+
+        <View style={styles.categoryTabsContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryTabsContent}
+          >
+            {categories.map((category) => {
+              const isActive = category.id === selectedCategoryId;
+
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  key={category.id}
+                  onPress={() => {
+                    void handleCategoryPress(category.id);
+                  }}
+                  onLongPress={() => {
+                    handleCategoryLongPress(category);
+                  }}
+                  style={({ pressed }): StyleProp<ViewStyle> => [
+                    styles.categoryChip,
+                    isActive && styles.categoryChipActive,
+                    pressed && styles.categoryChipPressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.categoryChipText,
+                      isActive && styles.categoryChipTextActive,
+                    ]}
+                  >
+                    {category.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={handleNewCategoryPress}
+              style={({ pressed }): StyleProp<ViewStyle> => [
+                styles.categoryChip,
+                styles.categoryChipNew,
+                pressed && styles.categoryChipPressed,
+              ]}
+            >
+              <Text style={styles.categoryChipNewText}>+ Nova</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+
+        {categoryFormMode && (
+          <View style={styles.categoryForm}>
+            <TextInput
+              autoFocus
+              onChangeText={setCategoryNameDraft}
+              placeholder="Nome da categoria"
+              placeholderTextColor="#94a3b8"
+              style={styles.categoryInput}
+              value={categoryNameDraft}
+            />
+
+            <View style={styles.categoryFormActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={closeCategoryForm}
+                style={({ pressed }): StyleProp<ViewStyle> => [
+                  styles.categoryActionButton,
+                  styles.categoryActionButtonSecondary,
+                  pressed && styles.categoryChipPressed,
+                ]}
+              >
+                <Text style={styles.categoryActionButtonSecondaryText}>
+                  Cancelar
+                </Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  void handleSaveCategoryPress();
+                }}
+                style={({ pressed }): StyleProp<ViewStyle> => [
+                  styles.categoryActionButton,
+                  styles.categoryActionButtonPrimary,
+                  pressed && styles.categoryChipPressed,
+                ]}
+              >
+                <Text style={styles.categoryActionButtonPrimaryText}>
+                  Salvar
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         <Animated.View
           style={[
@@ -498,7 +920,9 @@ export default function Index() {
                 <DayCell
                   key={dateString}
                   date={date}
-                  isChecked={Boolean(checkedDates[dateString]?.checked)}
+                  isChecked={Boolean(
+                    selectedCategoryEntries[dateString]?.checked
+                  )}
                   isDisabled={state === "disabled"}
                   isToday={dateString === todayString}
                   onPress={(pressedDay) => {

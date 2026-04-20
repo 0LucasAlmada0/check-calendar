@@ -107,6 +107,97 @@ export const styles = StyleSheet.create({
     fontWeight: "800",
     color: PRIMARY_BLUE,
   },
+  categoryTabsContainer: {
+    marginBottom: 14,
+  },
+  categoryTabsContent: {
+    gap: 8,
+    paddingRight: 4,
+  },
+  categoryChip: {
+    minHeight: 38,
+    borderRadius: 19,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    backgroundColor: "#ffffff",
+  },
+  categoryChipActive: {
+    borderColor: PRIMARY_BLUE,
+    backgroundColor: PRIMARY_BLUE,
+  },
+  categoryChipPressed: {
+    opacity: 0.78,
+  },
+  categoryChipNew: {
+    borderStyle: "dashed",
+    backgroundColor: "#f8fbff",
+  },
+  categoryChipText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: TEXT_DARK,
+  },
+  categoryChipTextActive: {
+    color: "#ffffff",
+  },
+  categoryChipNewText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: PRIMARY_BLUE,
+  },
+  categoryForm: {
+    marginBottom: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    backgroundColor: "#ffffff",
+    padding: 12,
+  },
+  categoryInput: {
+    minHeight: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    backgroundColor: "#f8fbff",
+    paddingHorizontal: 12,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#0f172a",
+  },
+  categoryFormActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginTop: 10,
+  },
+  categoryActionButton: {
+    minHeight: 36,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  categoryActionButtonPrimary: {
+    backgroundColor: PRIMARY_BLUE,
+  },
+  categoryActionButtonSecondary: {
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    backgroundColor: "#ffffff",
+  },
+  categoryActionButtonPrimaryText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#ffffff",
+  },
+  categoryActionButtonSecondaryText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: TEXT_DARK,
+  },
   calendarCard: {
     backgroundColor: "#ffffff",
     borderRadius: 24,

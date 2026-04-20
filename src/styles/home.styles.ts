@@ -10,6 +10,12 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#ffffff",
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  contentScroll: {
+    flex: 1,
+  },
   backgroundLayer: {
     ...StyleSheet.absoluteFillObject,
   },
@@ -48,9 +54,10 @@ export const styles = StyleSheet.create({
     backgroundColor: "rgba(147, 197, 253, 0.08)",
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 16,
     paddingTop: 12,
+    paddingBottom: 20,
   },
   header: {
     alignItems: "center",
@@ -208,13 +215,14 @@ export const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  notesSheet: {
+  notesCard: {
     marginTop: 12,
+    marginBottom: 20,
     backgroundColor: "#ffffff",
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: 14,
+    paddingBottom: 18,
     borderWidth: 1,
     borderColor: "#bfdbfe",
     shadowColor: "#000",
@@ -223,31 +231,42 @@ export const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
   },
-  notesSheetExpanded: {
-    paddingBottom: 16,
-  },
   notesHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "space-between",
+    gap: 12,
+    paddingTop: 2,
+    paddingBottom: 4,
   },
-  notesHandle: {
-    width: 44,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#bfdbfe",
+  notesHeaderText: {
+    flex: 1,
   },
   notesTitle: {
     fontSize: 17,
     fontWeight: "800",
     color: TEXT_DARK,
-    textAlign: "center",
   },
   notesDate: {
     marginTop: 2,
     fontSize: 13,
     fontWeight: "600",
     color: TEXT_MUTED,
-    textAlign: "center",
+  },
+  notesCloseButton: {
+    minHeight: 34,
+    borderRadius: 17,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    backgroundColor: "#f8fbff",
+  },
+  notesCloseButtonText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: PRIMARY_BLUE,
   },
   notesInput: {
     minHeight: 112,
@@ -299,12 +318,21 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "transparent",
   },
+  dayCircleSelected: {
+    borderWidth: 2,
+    borderColor: "#93c5fd",
+    backgroundColor: "#f8fbff",
+  },
   dayCircleChecked: {
     backgroundColor: PRIMARY_BLUE,
     width: 40,
     height: 40,
     borderRadius: 20,
     overflow: "hidden",
+  },
+  dayCircleCheckedSelected: {
+    borderWidth: 2,
+    borderColor: "#bfdbfe",
   },
   dayCircleToday: {
     width: 40,

@@ -53,6 +53,7 @@ type DayCellProps = {
   isSelected: boolean;
   isToday: boolean;
   isDisabled: boolean;
+  emoji?: string;
   onPress: (day: DateData) => void;
   onLongPress: (day: DateData) => void;
 };
@@ -61,6 +62,7 @@ type CategoryFormMode = "create" | "edit" | null;
 
 const STORAGE_KEY = "@check_calendar_dates";
 const EASTER_EGG_TRIGGER_COUNT = 5;
+const DAY_EMOJI_OPTIONS = ["✅", "❌", "⭐", "💪", "💙"];
 const DEFAULT_CATEGORIES: HabitCategory[] = [
   {
     id: "geral",
@@ -273,6 +275,7 @@ function DayCell({
   isSelected,
   isToday,
   isDisabled,
+  emoji,
   onPress,
   onLongPress,
 }: DayCellProps) {
@@ -362,6 +365,12 @@ function DayCell({
               <Text style={styles.checkIcon}>{"\u2713"}</Text>
             </View>
           )}
+
+          {emoji && (
+            <View style={styles.dayEmojiBadge}>
+              <Text style={styles.dayEmojiText}>{emoji}</Text>
+            </View>
+          )}
         </View>
       </Animated.View>
     </Pressable>
@@ -412,6 +421,9 @@ export default function Index() {
   const selectedDateLabel = selectedDateString
     ? formatSelectedDate(selectedDateString)
     : "";
+  const selectedDateEmoji = selectedDateString
+    ? selectedCategoryEntries[selectedDateString]?.emoji
+    : undefined;
   const bottomSafeSpacing = Math.max(insets.bottom + 12, 20);
   const notesCardOpacity = notesCardAnimation.interpolate({
     inputRange: [0, 1],
@@ -736,22 +748,27 @@ export default function Index() {
     setNoteText("");
   }
 
-  async function handleNoteChange(text: string): Promise<void> {
+  async function updateSelectedDateEntry(
+    entryChanges: Partial<CalendarDateData>
+  ): Promise<void> {
     if (!selectedDateString) {
       return;
     }
-
-    setNoteText(text);
 
     const currentDateData = selectedCategoryEntries[selectedDateString];
     const updatedEntries: CalendarDates = { ...selectedCategoryEntries };
     const updatedDateData = {
       checked: currentDateData?.checked ?? false,
-      note: text,
+      note: currentDateData?.note,
       emoji: currentDateData?.emoji,
+      ...entryChanges,
     };
 
-    if (updatedDateData.checked || text.trim().length > 0 || updatedDateData.emoji) {
+    if (
+      updatedDateData.checked ||
+      (updatedDateData.note ?? "").trim().length > 0 ||
+      updatedDateData.emoji
+    ) {
       updatedEntries[selectedDateString] = updatedDateData;
     } else {
       delete updatedEntries[selectedDateString];
@@ -771,6 +788,21 @@ export default function Index() {
       categories: updatedCategories,
       selectedCategoryId,
     });
+  }
+
+  async function handleNoteChange(text: string): Promise<void> {
+    setNoteText(text);
+    await updateSelectedDateEntry({ note: text });
+  }
+
+  async function handleEmojiPress(emoji: string): Promise<void> {
+    const nextEmoji = selectedDateEmoji === emoji ? undefined : emoji;
+
+    await updateSelectedDateEntry({ emoji: nextEmoji });
+  }
+
+  async function handleRemoveEmojiPress(): Promise<void> {
+    await updateSelectedDateEntry({ emoji: undefined });
   }
 
   if (isLoading) {
@@ -977,6 +1009,7 @@ export default function Index() {
                 <DayCell
                   key={dateString}
                   date={date}
+                  emoji={selectedCategoryEntries[dateString]?.emoji}
                   isChecked={Boolean(
                     selectedCategoryEntries[dateString]?.checked
                   )}
@@ -1020,6 +1053,46 @@ export default function Index() {
               >
                 <Text style={styles.notesCloseButtonText}>Fechar</Text>
               </Pressable>
+            </View>
+
+            <View style={styles.emojiSection}>
+              <Text style={styles.emojiSectionLabel}>Emoji do dia</Text>
+
+              <View style={styles.emojiOptionsRow}>
+                {DAY_EMOJI_OPTIONS.map((emoji) => {
+                  const isEmojiSelected = selectedDateEmoji === emoji;
+
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      key={emoji}
+                      onPress={() => {
+                        void handleEmojiPress(emoji);
+                      }}
+                      style={({ pressed }): StyleProp<ViewStyle> => [
+                        styles.emojiOption,
+                        isEmojiSelected && styles.emojiOptionSelected,
+                        pressed && styles.categoryChipPressed,
+                      ]}
+                    >
+                      <Text style={styles.emojiOptionText}>{emoji}</Text>
+                    </Pressable>
+                  );
+                })}
+
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    void handleRemoveEmojiPress();
+                  }}
+                  style={({ pressed }): StyleProp<ViewStyle> => [
+                    styles.emojiRemoveButton,
+                    pressed && styles.categoryChipPressed,
+                  ]}
+                >
+                  <Text style={styles.emojiRemoveButtonText}>Remover</Text>
+                </Pressable>
+              </View>
             </View>
 
             <TextInput

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -506,6 +507,7 @@ function EmojiOption({ emoji, isSelected, onPress }: EmojiOptionProps) {
 
 export default function Index() {
   const insets = useSafeAreaInsets();
+  const contentScrollRef = useRef<ScrollView>(null);
   const [todayString] = useState(getTodayDateString);
   const [visibleMonthString, setVisibleMonthString] = useState(todayString);
   const [calendarResetKey, setCalendarResetKey] = useState(0);
@@ -534,6 +536,7 @@ export default function Index() {
   const notesCardAnimation = useRef(new Animated.Value(0)).current;
   const calendarAnimation = useRef(new Animated.Value(1)).current;
   const hasAnimatedInfoCard = useRef(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const visibleMonthPrefix = visibleMonthString.slice(0, 7);
   const isViewingCurrentMonth = visibleMonthPrefix === todayString.slice(0, 7);
@@ -555,6 +558,10 @@ export default function Index() {
     ? selectedCategoryEntries[selectedDateString]?.emoji
     : undefined;
   const bottomSafeSpacing = Math.max(insets.bottom + 12, 20);
+  const keyboardAwareBottomSpacing =
+    keyboardHeight > 0
+      ? keyboardHeight + Math.max(insets.bottom, 12)
+      : bottomSafeSpacing;
   const notesCardOpacity = notesCardAnimation.interpolate({
     inputRange: [0, 1],
     outputRange: [0, 1],
@@ -607,6 +614,20 @@ export default function Index() {
       useNativeDriver: true,
     }).start();
   }, [notesCardAnimation, selectedDateString]);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener("keyboardDidShow", (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   async function loadCheckedDates(): Promise<void> {
     try {
@@ -961,6 +982,12 @@ export default function Index() {
     await updateSelectedDateEntry({ emoji: undefined });
   }
 
+  function handleNotesInputFocus(): void {
+    window.setTimeout(() => {
+      contentScrollRef.current?.scrollToEnd({ animated: true });
+    }, 120);
+  }
+
   if (isLoading) {
     return (
       <SafeAreaView
@@ -994,17 +1021,18 @@ export default function Index() {
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "padding"}
         style={styles.keyboardAvoidingView}
       >
         <ScrollView
+          ref={contentScrollRef}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           style={styles.contentScroll}
           contentContainerStyle={[
             styles.content,
             {
-              paddingBottom: bottomSafeSpacing,
+              paddingBottom: keyboardAwareBottomSpacing,
             },
           ]}
         >
@@ -1259,6 +1287,7 @@ export default function Index() {
               onChangeText={(text) => {
                 void handleNoteChange(text);
               }}
+              onFocus={handleNotesInputFocus}
               placeholder="Escreva uma anotação para este dia..."
               placeholderTextColor="#94a3b8"
               style={styles.notesInput}

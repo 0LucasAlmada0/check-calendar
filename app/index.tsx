@@ -58,6 +58,19 @@ type DayCellProps = {
   onLongPress: (day: DateData) => void;
 };
 
+type CategoryChipProps = {
+  category: HabitCategory;
+  isActive: boolean;
+  onLongPress: () => void;
+  onPress: () => void;
+};
+
+type EmojiOptionProps = {
+  emoji: string;
+  isSelected: boolean;
+  onPress: () => void;
+};
+
 type CategoryFormMode = "create" | "edit" | null;
 
 const STORAGE_KEY = "@check_calendar_dates";
@@ -288,14 +301,14 @@ function DayCell({
 
     Animated.sequence([
       Animated.timing(scale, {
-        toValue: 0.92,
-        duration: 65,
+        toValue: 0.95,
+        duration: 55,
         useNativeDriver: true,
       }),
       Animated.spring(scale, {
         toValue: 1,
-        friction: 6,
-        tension: 220,
+        friction: 5,
+        tension: 260,
         useNativeDriver: true,
       }),
     ]).start();
@@ -377,6 +390,120 @@ function DayCell({
   );
 }
 
+function CategoryChip({
+  category,
+  isActive,
+  onLongPress,
+  onPress,
+}: CategoryChipProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!isActive) {
+      Animated.timing(scale, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+
+    Animated.sequence([
+      Animated.timing(scale, {
+        toValue: 1.04,
+        duration: 90,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 6,
+        tension: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [isActive, scale]);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onLongPress={onLongPress}
+      onPress={onPress}
+      style={({ pressed }): StyleProp<ViewStyle> => [
+        pressed && styles.categoryChipPressed,
+      ]}
+    >
+      <Animated.View
+        style={[
+          styles.categoryChip,
+          isActive && styles.categoryChipActive,
+          {
+            transform: [{ scale }],
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.categoryChipText,
+            isActive && styles.categoryChipTextActive,
+          ]}
+        >
+          {category.name}
+        </Text>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+function EmojiOption({ emoji, isSelected, onPress }: EmojiOptionProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  function runEmojiFeedback(): void {
+    scale.stopAnimation();
+    scale.setValue(1);
+
+    Animated.sequence([
+      Animated.timing(scale, {
+        toValue: 1.1,
+        duration: 70,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 5,
+        tension: 260,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }
+
+  function handlePress(): void {
+    runEmojiFeedback();
+    onPress();
+  }
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={handlePress}
+      style={({ pressed }): StyleProp<ViewStyle> => [
+        pressed && styles.categoryChipPressed,
+      ]}
+    >
+      <Animated.View
+        style={[
+          styles.emojiOption,
+          isSelected && styles.emojiOptionSelected,
+          {
+            transform: [{ scale }],
+          },
+        ]}
+      >
+        <Text style={styles.emojiOptionText}>{emoji}</Text>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 export default function Index() {
   const insets = useSafeAreaInsets();
   const [todayString] = useState(getTodayDateString);
@@ -405,6 +532,7 @@ export default function Index() {
   });
   const infoCardAnimation = useRef(new Animated.Value(1)).current;
   const notesCardAnimation = useRef(new Animated.Value(0)).current;
+  const calendarAnimation = useRef(new Animated.Value(1)).current;
   const hasAnimatedInfoCard = useRef(false);
 
   const visibleMonthPrefix = visibleMonthString.slice(0, 7);
@@ -434,6 +562,10 @@ export default function Index() {
   const notesCardTranslateY = notesCardAnimation.interpolate({
     inputRange: [0, 1],
     outputRange: [12, 0],
+  });
+  const calendarOpacity = calendarAnimation.interpolate({
+    inputRange: [0.96, 1],
+    outputRange: [0.75, 1],
   });
   const infoCardOpacity = infoCardAnimation.interpolate({
     inputRange: [0.992, 1],
@@ -753,6 +885,23 @@ export default function Index() {
   function handleTodayPress(): void {
     setVisibleMonthString(todayString);
     setCalendarResetKey((currentKey) => currentKey + 1);
+    runCalendarTransition();
+  }
+
+  function runCalendarTransition(): void {
+    calendarAnimation.stopAnimation();
+    calendarAnimation.setValue(0.96);
+
+    Animated.timing(calendarAnimation, {
+      toValue: 1,
+      duration: 140,
+      useNativeDriver: true,
+    }).start();
+  }
+
+  function handleMonthChange(month: DateData): void {
+    setVisibleMonthString(month.dateString);
+    runCalendarTransition();
   }
 
   async function updateSelectedDateEntry(
@@ -877,8 +1026,9 @@ export default function Index() {
               const isActive = category.id === selectedCategoryId;
 
               return (
-                <Pressable
-                  accessibilityRole="button"
+                <CategoryChip
+                  category={category}
+                  isActive={isActive}
                   key={category.id}
                   onPress={() => {
                     void handleCategoryPress(category.id);
@@ -886,21 +1036,7 @@ export default function Index() {
                   onLongPress={() => {
                     handleCategoryLongPress(category);
                   }}
-                  style={({ pressed }): StyleProp<ViewStyle> => [
-                    styles.categoryChip,
-                    isActive && styles.categoryChipActive,
-                    pressed && styles.categoryChipPressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.categoryChipText,
-                      isActive && styles.categoryChipTextActive,
-                    ]}
-                  >
-                    {category.name}
-                  </Text>
-                </Pressable>
+                />
               );
             })}
 
@@ -1000,7 +1136,15 @@ export default function Index() {
           </View>
         )}
 
-        <View style={styles.calendarCard}>
+        <Animated.View
+          style={[
+            styles.calendarCard,
+            {
+              opacity: calendarOpacity,
+              transform: [{ scale: calendarAnimation }],
+            },
+          ]}
+        >
           <Calendar
             key={`${todayString}-${calendarResetKey}`}
             current={todayString}
@@ -1008,9 +1152,7 @@ export default function Index() {
             firstDay={0}
             hideExtraDays={false}
             onDayPress={handleDayPress}
-            onMonthChange={(month) => {
-              setVisibleMonthString(month.dateString);
-            }}
+            onMonthChange={handleMonthChange}
             theme={{
               arrowColor: "#2563eb",
               calendarBackground: "#ffffff",
@@ -1047,7 +1189,7 @@ export default function Index() {
               );
             }}
           />
-        </View>
+        </Animated.View>
 
         {selectedDateString && (
           <Animated.View
@@ -1086,20 +1228,14 @@ export default function Index() {
                   const isEmojiSelected = selectedDateEmoji === emoji;
 
                   return (
-                    <Pressable
-                      accessibilityRole="button"
+                    <EmojiOption
+                      emoji={emoji}
+                      isSelected={isEmojiSelected}
                       key={emoji}
                       onPress={() => {
                         void handleEmojiPress(emoji);
                       }}
-                      style={({ pressed }): StyleProp<ViewStyle> => [
-                        styles.emojiOption,
-                        isEmojiSelected && styles.emojiOptionSelected,
-                        pressed && styles.categoryChipPressed,
-                      ]}
-                    >
-                      <Text style={styles.emojiOptionText}>{emoji}</Text>
-                    </Pressable>
+                    />
                   );
                 })}
 

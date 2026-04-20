@@ -55,7 +55,7 @@ export const themes: Record<ThemeMode, AppTheme> = {
       orbSecondary: "rgba(147, 197, 253, 0.08)",
       calendarBackground: "#ffffff",
       inputBackground: "#f8fbff",
-      emojiBadgeBackground: "#ffffff",
+      emojiBadgeBackground: "",
     },
   },
   dark: {

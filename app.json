@@ -2,7 +2,7 @@
   "expo": {
     "name": "JoyCheck",
     "slug": "joycheck",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/JoyCheckAppIcon.png",
     "scheme": "checkcalendar",
@@ -13,6 +13,7 @@
     },
     "android": {
       "package": "com.lucas.joycheck",
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/JoyCheckAppIcon.png",
         "backgroundColor": "#2563eb"

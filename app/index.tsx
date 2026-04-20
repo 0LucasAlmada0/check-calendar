@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   Text,
   TextInput,
+  useColorScheme,
   View,
   type StyleProp,
   type ViewStyle,
@@ -21,7 +22,10 @@ import {
 } from "react-native-calendars";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { styles } from "../src/styles/home.styles";
+import { createHomeStyles } from "../src/styles/home.styles";
+import { themes, type ThemeMode } from "../src/theme/colors";
+
+type HomeStyles = ReturnType<typeof createHomeStyles>;
 
 type CalendarDateData = {
   checked?: boolean;
@@ -50,6 +54,7 @@ type EasterEggState = {
 
 type DayCellProps = {
   date: DateData;
+  styles: HomeStyles;
   isChecked: boolean;
   isSelected: boolean;
   isToday: boolean;
@@ -62,6 +67,7 @@ type DayCellProps = {
 type CategoryChipProps = {
   category: HabitCategory;
   isActive: boolean;
+  styles: HomeStyles;
   onLongPress: () => void;
   onPress: () => void;
 };
@@ -69,12 +75,14 @@ type CategoryChipProps = {
 type EmojiOptionProps = {
   emoji: string;
   isSelected: boolean;
+  styles: HomeStyles;
   onPress: () => void;
 };
 
 type CategoryFormMode = "create" | "edit" | null;
 
 const STORAGE_KEY = "@check_calendar_dates";
+const THEME_STORAGE_KEY = "@joycheck_theme_mode";
 const EASTER_EGG_TRIGGER_COUNT = 5;
 const DAY_EMOJI_OPTIONS = ["✅", "❌", "⭐", "💪", "💙"];
 const DEFAULT_CATEGORIES: HabitCategory[] = [
@@ -285,6 +293,7 @@ function formatSelectedDate(dateString: string): string {
 
 function DayCell({
   date,
+  styles,
   isChecked,
   isSelected,
   isToday,
@@ -394,6 +403,7 @@ function DayCell({
 function CategoryChip({
   category,
   isActive,
+  styles,
   onLongPress,
   onPress,
 }: CategoryChipProps) {
@@ -455,7 +465,7 @@ function CategoryChip({
   );
 }
 
-function EmojiOption({ emoji, isSelected, onPress }: EmojiOptionProps) {
+function EmojiOption({ emoji, isSelected, styles, onPress }: EmojiOptionProps) {
   const scale = useRef(new Animated.Value(1)).current;
 
   function runEmojiFeedback(): void {
@@ -507,7 +517,11 @@ function EmojiOption({ emoji, isSelected, onPress }: EmojiOptionProps) {
 
 export default function Index() {
   const insets = useSafeAreaInsets();
+  const systemColorScheme = useColorScheme();
   const contentScrollRef = useRef<ScrollView>(null);
+  const [themeMode, setThemeMode] = useState<ThemeMode>(
+    systemColorScheme === "dark" ? "dark" : "light"
+  );
   const [todayString] = useState(getTodayDateString);
   const [visibleMonthString, setVisibleMonthString] = useState(todayString);
   const [calendarResetKey, setCalendarResetKey] = useState(0);
@@ -537,6 +551,21 @@ export default function Index() {
   const calendarAnimation = useRef(new Animated.Value(1)).current;
   const hasAnimatedInfoCard = useRef(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const activeTheme = themes[themeMode];
+  const styles = useMemo(() => createHomeStyles(activeTheme), [activeTheme]);
+  const calendarTheme = useMemo(
+    () => ({
+      arrowColor: activeTheme.colors.primary,
+      calendarBackground: activeTheme.colors.calendarBackground,
+      monthTextColor: activeTheme.colors.text,
+      textDayHeaderFontSize: 13,
+      textDayHeaderFontWeight: "600" as const,
+      textMonthFontSize: 22,
+      textMonthFontWeight: "700" as const,
+      textSectionTitleColor: activeTheme.colors.textMuted,
+    }),
+    [activeTheme]
+  );
 
   const visibleMonthPrefix = visibleMonthString.slice(0, 7);
   const isViewingCurrentMonth = visibleMonthPrefix === todayString.slice(0, 7);
@@ -581,6 +610,7 @@ export default function Index() {
 
   useEffect(() => {
     void loadCheckedDates();
+    void loadThemeMode();
   }, []);
 
   useEffect(() => {
@@ -645,6 +675,28 @@ export default function Index() {
       console.log("Erro ao carregar datas:", error);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function loadThemeMode(): Promise<void> {
+    try {
+      const storedThemeMode = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+
+      if (storedThemeMode === "light" || storedThemeMode === "dark") {
+        setThemeMode(storedThemeMode);
+      }
+    } catch (error) {
+      console.log("Erro ao carregar tema:", error);
+    }
+  }
+
+  async function handleThemeModePress(nextThemeMode: ThemeMode): Promise<void> {
+    setThemeMode(nextThemeMode);
+
+    try {
+      await AsyncStorage.setItem(THEME_STORAGE_KEY, nextThemeMode);
+    } catch (error) {
+      console.log("Erro ao salvar tema:", error);
     }
   }
 
@@ -1042,6 +1094,36 @@ export default function Index() {
           <Text style={styles.subtitle}>
             Toque em um dia para marcar o que foi concluído.
           </Text>
+
+          <View style={styles.themeToggle}>
+            {(["light", "dark"] as const).map((mode) => {
+              const isThemeActive = themeMode === mode;
+
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  key={mode}
+                  onPress={() => {
+                    void handleThemeModePress(mode);
+                  }}
+                  style={({ pressed }): StyleProp<ViewStyle> => [
+                    styles.themeToggleButton,
+                    isThemeActive && styles.themeToggleButtonActive,
+                    pressed && styles.categoryChipPressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.themeToggleButtonText,
+                      isThemeActive && styles.themeToggleButtonTextActive,
+                    ]}
+                  >
+                    {mode === "light" ? "Claro" : "Escuro"}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         <View style={styles.categoryTabsContainer}>
@@ -1057,6 +1139,7 @@ export default function Index() {
                 <CategoryChip
                   category={category}
                   isActive={isActive}
+                  styles={styles}
                   key={category.id}
                   onPress={() => {
                     void handleCategoryPress(category.id);
@@ -1088,7 +1171,7 @@ export default function Index() {
               autoFocus
               onChangeText={setCategoryNameDraft}
               placeholder="Nome da categoria"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={activeTheme.colors.textMuted}
               style={styles.categoryInput}
               value={categoryNameDraft}
             />
@@ -1165,6 +1248,7 @@ export default function Index() {
         )}
 
         <Animated.View
+          key={`calendar-card-${themeMode}`}
           style={[
             styles.calendarCard,
             {
@@ -1174,23 +1258,14 @@ export default function Index() {
           ]}
         >
           <Calendar
-            key={`${todayString}-${calendarResetKey}`}
+            key={`${todayString}-${calendarResetKey}-${themeMode}`}
             current={todayString}
             enableSwipeMonths
             firstDay={0}
             hideExtraDays={false}
             onDayPress={handleDayPress}
             onMonthChange={handleMonthChange}
-            theme={{
-              arrowColor: "#2563eb",
-              calendarBackground: "#ffffff",
-              monthTextColor: "#1e3a8a",
-              textDayHeaderFontSize: 13,
-              textDayHeaderFontWeight: "600",
-              textMonthFontSize: 22,
-              textMonthFontWeight: "700",
-              textSectionTitleColor: "#64748b",
-            }}
+            theme={calendarTheme}
             dayComponent={({ date, state }) => {
               if (!date || typeof date.day !== "number") {
                 return null;
@@ -1202,6 +1277,7 @@ export default function Index() {
                 <DayCell
                   key={dateString}
                   date={date}
+                  styles={styles}
                   emoji={selectedCategoryEntries[dateString]?.emoji}
                   isChecked={Boolean(
                     selectedCategoryEntries[dateString]?.checked
@@ -1259,6 +1335,7 @@ export default function Index() {
                     <EmojiOption
                       emoji={emoji}
                       isSelected={isEmojiSelected}
+                      styles={styles}
                       key={emoji}
                       onPress={() => {
                         void handleEmojiPress(emoji);
@@ -1289,7 +1366,7 @@ export default function Index() {
               }}
               onFocus={handleNotesInputFocus}
               placeholder="Escreva uma anotação para este dia..."
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor={activeTheme.colors.textMuted}
               style={styles.notesInput}
               textAlignVertical="top"
               value={noteText}

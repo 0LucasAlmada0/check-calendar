@@ -2,7 +2,9 @@
 
 Check Calendar é um app simples feito em React Native para ajudar pessoas a organizarem seus checks diários. Com ele, o usuário pode marcar as tarefas do dia conforme forem concluídas, mantendo uma visão clara do que ainda precisa ser feito e do que já foi finalizado.
 
-<img width="177" height="419" alt="checkcalendar 2" src="https://github.com/user-attachments/assets/eddf9ff7-48d4-4f23-b8a6-80b364f90cae" />
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/eddf9ff7-48d4-4f23-b8a6-80b364f90cae" width="200"/>
+</p>
 
 ## ✨ Funcionalidades
 - 📝 Criar e acompanhar tarefas do dia.
